@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Draw.io → EMF</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 12px; }
+    .row { margin: 10px 0; }
+    #status { white-space: pre-wrap; font-size: 12px; opacity: 0.85; }
+    button { padding: 8px 12px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <input id="file" type="file" accept=".drawio" />
+  </div>
+
+  <div class="row">
+    <button id="btnConvert">Convert & Download EMF</button>
+  </div>
+
+  <div class="row" id="status">Ready.</div>
+
+  <script src="code.js"></script>
+</body>
+</html>

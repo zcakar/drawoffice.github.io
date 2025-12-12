@@ -1,0 +1,15 @@
+{
+  "name": "Draw.io EMF",
+  "guid": "asc.{YOUR-GUID-HERE}",
+  "version": "1.0.0",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Convert .drawio to EMF",
+      "url": "index.html",
+      "icons": ["icon.png"],
+      "isViewer": false,
+      "EditorsSupport": ["word", "cell", "slide"]
+    }
+  ]
+}
