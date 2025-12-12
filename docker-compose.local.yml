@@ -1,0 +1,189 @@
+version: '3.8'
+
+# Local development environment: DocSpace + DocumentServer + Backend API
+services:
+  # PostgreSQL Database (shared)
+  postgres:
+    image: postgres:15-alpine
+    container_name: drawoffice-postgres
+    environment:
+      POSTGRES_USER: onlyoffice
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-onlyoffice_dev}
+      POSTGRES_DB: onlyoffice
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onlyoffice"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - drawoffice
+
+  # Redis Cache (for sessions, locks)
+  redis:
+    image: redis:7-alpine
+    container_name: drawoffice-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - drawoffice
+
+  # RabbitMQ Message Queue (optional, for async tasks)
+  rabbitmq:
+    image: rabbitmq:3.12-alpine
+    container_name: drawoffice-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: onlyoffice
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-onlyoffice_dev}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - drawoffice
+
+  # DocumentServer (ONLYOFFICE Editors Backend)
+  documentserver:
+    image: onlyoffice/documentserver:latest
+    container_name: drawoffice-documentserver
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: onlyoffice
+      DB_PASSWORD: ${DB_PASSWORD:-onlyoffice_dev}
+      DB_NAME: onlyoffice_ds
+      
+      # Cache configuration
+      REDIS_SERVER_HOST: redis
+      REDIS_SERVER_PORT: 6379
+      
+      # Message queue configuration
+      RABBITMQ_URL: "amqp://onlyoffice:${RABBITMQ_PASSWORD:-onlyoffice_dev}@rabbitmq:5672"
+    ports:
+      - "8000:80"
+    volumes:
+      - ds_logs:/var/log/onlyoffice
+      - ds_data:/var/www/onlyoffice/Data
+    networks:
+      - drawoffice
+
+  # DocSpace (ONLYOFFICE Platform)
+  docspace:
+    image: onlyoffice/docspace:latest
+    container_name: drawoffice-docspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      documentserver:
+        condition: service_started
+    environment:
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: onlyoffice
+      DB_PASSWORD: ${DB_PASSWORD:-onlyoffice_dev}
+      DB_NAME: onlyoffice_docspace
+      
+      # DocumentServer connection
+      DOCUMENT_SERVER_URL: "http://documentserver"
+      
+      # Redis
+      REDIS_SERVER: redis
+      REDIS_SERVER_PORT: 6379
+      
+      # RabbitMQ
+      RABBITMQ_URL: "amqp://onlyoffice:${RABBITMQ_PASSWORD:-onlyoffice_dev}@rabbitmq:5672"
+      
+      # Core settings
+      CORE_BASE_URL: "http://localhost:8080"
+      CORE_SECRET: ${CORE_SECRET:-dev_secret_key_change_in_production}
+    ports:
+      - "8080:80"
+    volumes:
+      - docspace_logs:/var/log/onlyoffice
+      - docspace_data:/var/www/onlyoffice/DocSpace
+    networks:
+      - drawoffice
+
+  # Draw.io to EMF Conversion API
+  drawio-emf-api:
+    build:
+      context: .
+      dockerfile: diagram-vector-pipeline/Dockerfile
+    container_name: drawoffice-drawio-emf-api
+    environment:
+      LOG_LEVEL: DEBUG
+      ALLOWED_ORIGINS: "http://localhost:8080,http://localhost:8000,http://drawoffice-docspace"
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./diagram-vector-pipeline/src:/app/src
+    networks:
+      - drawoffice
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx Reverse Proxy (optional, for production-like setup)
+  nginx:
+    image: nginx:alpine
+    container_name: drawoffice-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-local.conf:/etc/nginx/nginx.conf:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - docspace
+      - documentserver
+      - drawio-emf-api
+    networks:
+      - drawoffice
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ds_logs:
+    driver: local
+  ds_data:
+    driver: local
+  docspace_logs:
+    driver: local
+  docspace_data:
+    driver: local
+  nginx_cache:
+    driver: local
+
+networks:
+  drawoffice:
+    driver: bridge
