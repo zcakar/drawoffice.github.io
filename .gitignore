@@ -1,4 +1,11 @@
-*.js.bak
-*.json.bak
+# Python virtual environments
+.venv/
+venv/
 
-*node_modules*
+# Python cache
+__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+.vscode/
