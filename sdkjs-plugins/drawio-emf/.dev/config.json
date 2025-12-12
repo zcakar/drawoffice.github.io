@@ -1,0 +1,11 @@
+{
+  "excludes": [
+    "node_modules/*",
+    "deploy/*",
+    ".dev/*",
+    "*.md",
+    ".git/*",
+    ".gitignore",
+    ".DS_Store"
+  ]
+}

@@ -3,7 +3,11 @@
   // NOTE:
   // - During local development this points to your local FastAPI service.
   // - In production you will point to your deployed service (e.g., https://your-domain/convert/emf).
-  const API_URL = "http://127.0.0.1:9000/convert/emf";
+  // Environment-aware API URL configuration
+  const isDevelopment = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  const API_URL = isDevelopment 
+    ? "http://127.0.0.1:9000/convert/emf"
+    : (window.API_EMF_URL || window.location.origin + "/api/convert/emf");
 
   function setStatus(msg) {
     const el = document.getElementById("status");
@@ -27,15 +31,27 @@
       const response = await fetch(API_URL, {
         method: "POST",
         body: formData,
+        headers: {
+          // Add auth header if available (for secure endpoints)
+          ...(window.AUTH_TOKEN && { "Authorization": "Bearer " + window.AUTH_TOKEN })
+        }
       });
 
       if (!response.ok) {
-        setStatus("Server error: " + response.status + "\n" + (await response.text()));
+        const errorMsg = await response.text();
+        setStatus("Server error: " + response.status + "\n" + errorMsg);
+        console.error("[drawio-emf]", response.status, errorMsg);
         return;
       }
 
       // We expect an EMF binary payload
       const blob = await response.blob();
+      
+      // Validate blob
+      if (blob.size === 0) {
+        setStatus("Error: Server returned empty file. Check conversion service.");
+        return;
+      }
 
       // Force download in the browser
       const url = window.URL.createObjectURL(blob);
@@ -51,9 +67,11 @@
       a.remove();
 
       window.URL.revokeObjectURL(url);
-      setStatus("Done. EMF downloaded: " + a.download);
+      setStatus("✓ Done. EMF downloaded: " + a.download);
     } catch (err) {
-      setStatus("Client error: " + (err && err.message ? err.message : String(err)));
+      const errMsg = err && err.message ? err.message : String(err);
+      setStatus("Client error: " + errMsg + "\n(Check API_URL and network connection)");
+      console.error("[drawio-emf] Error:", err);
     }
   }
 
@@ -67,9 +85,25 @@
         setStatus("Please choose a .drawio file first.");
         return;
       }
+      
+      // Validate file extension
+      if (!file.name.toLowerCase().endsWith(".drawio")) {
+        setStatus("Error: Please select a .drawio file.");
+        return;
+      }
+      
+      // Check file size (max 50MB)
+      const maxSize = 50 * 1024 * 1024;
+      if (file.size > maxSize) {
+        setStatus("Error: File is too large. Maximum size: 50MB.");
+        return;
+      }
+      
       await convertAndDownload(file);
     });
 
+    // Log API endpoint for debugging
+    console.log("[drawio-emf] Initialized. API endpoint:", API_URL);
     setStatus("Ready. Select a .drawio file and click Convert.");
   }
 

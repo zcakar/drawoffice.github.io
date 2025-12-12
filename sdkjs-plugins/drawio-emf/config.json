@@ -1,15 +1,15 @@
 {
   "name": "Draw.io EMF",
-  "guid": "asc.{YOUR-GUID-HERE}",
-  "version": "1.0.0",
+  "guid": "asc.{d76f0f83-9e26-45f7-86aa-cb9ad8f5f6b4}",
+  "version": "1.0.1",
   "baseUrl": "",
   "variations": [
     {
-      "description": "Convert .drawio to EMF",
+      "description": "Convert .drawio diagrams to high-quality EMF format",
       "url": "index.html",
       "icons": ["icon.png"],
       "isViewer": false,
-      "EditorsSupport": ["word", "cell", "slide"]
+      "EditorsSupport": ["word", "cell", "slide", "pdf"]
     }
   ]
 }
