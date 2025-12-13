@@ -1,13 +1,17 @@
 FROM python:3.10-slim
 
-# Install system dependencies for DrawIO → SVG → EMF conversion
+# Install system dependencies for image processing
 RUN apt-get update && apt-get install -y \
-    libreoffice-draw \
-    libreoffice-common \
     imagemagick \
     libmagickwand-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Create app directory and set permissions
+RUN mkdir -p /home/app && chmod -R 777 /home/app
+
+# Set environment variables
+ENV HOME=/home/app
 
 # Configure ImageMagick to allow EMF operations (if exists)
 RUN if [ -f /etc/ImageMagick-6/policy.xml ]; then \
