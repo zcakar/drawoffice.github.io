@@ -1,0 +1,54 @@
+version: '3.8'
+
+# Simplified local development setup for testing DrawIO EMF conversion
+services:
+  # PostgreSQL Database (optional, for future features)
+  postgres:
+    image: postgres:15-alpine
+    container_name: drawoffice-postgres
+    environment:
+      POSTGRES_USER: onlyoffice
+      POSTGRES_PASSWORD: onlyoffice_dev
+      POSTGRES_DB: drawio_test
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onlyoffice"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - drawoffice
+
+  # Draw.io to EMF Conversion API
+  drawio-emf-api:
+    build:
+      context: ./
+      dockerfile: ./diagram-vector-pipeline/Dockerfile
+    container_name: drawoffice-drawio-emf-api
+    environment:
+      LOG_LEVEL: DEBUG
+      ALLOWED_ORIGINS: "*"
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./diagram-vector-pipeline/src:/app/src
+    networks:
+      - drawoffice
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  drawoffice:
+    driver: bridge

@@ -12,43 +12,66 @@ def convert_drawio_to_svg(
     drawio_cli: Optional[str] = None,
 ) -> bool:
     """
-    Convert a .drawio file to an SVG using the diagrams.net CLI.
-
-    I always try to respect the requested output path, but if the CLI ignores
-    the --output argument and writes next to the input file, I will move that
-    file into the requested location.
+    Convert a .drawio file to an SVG using LibreOffice and ImageMagick.
     """
 
-    cli = drawio_cli or os.environ.get("DRAWIO_CLI", "drawio")
-
-    # I make sure the target directory exists before calling the CLI.
+    # Ensure target directory exists
     svg_file.parent.mkdir(parents=True, exist_ok=True)
 
-    command = [
-        cli,
-        "--export",
-        "--format",
-        "svg",
-        "--output",
-        str(svg_file),
+    # Step 1: Convert DrawIO to PNG using LibreOffice
+    png_file = svg_file.parent / "temp_conversion.png"
+    
+    command_png = [
+        "libreoffice",
+        "--headless",
+        "--convert-to", "png",
+        "--outdir", str(svg_file.parent),
         str(drawio_file),
     ]
 
-    print(f"[draw.io] Converting {drawio_file} -> {svg_file} with '{cli}'")
-    result = subprocess.run(command, capture_output=True, text=True)
+    print(f"[draw.io] Converting {drawio_file} -> PNG using LibreOffice")
+    result = subprocess.run(command_png, capture_output=True, text=True, timeout=120)
 
     if result.returncode != 0:
-        print(f"[draw.io] CLI returned non-zero exit code: {result.returncode}")
-        print("[draw.io] stderr:")
-        print(result.stderr)
+        print(f"[draw.io] LibreOffice PNG conversion failed: {result.returncode}")
+        print(f"[draw.io] Error: {result.stderr[:200]}")
         return False
 
-    # If the CLI ignored --output, it might have written next to the input file.
-    if not svg_file.exists():
-        fallback = drawio_file.with_suffix(".svg")
-        if fallback.exists():
-            print(f"[draw.io] Output not found at {svg_file}, using fallback {fallback}")
-            fallback.rename(svg_file)
+    # Find generated PNG file
+    png_path = None
+    for f in svg_file.parent.glob("*.png"):
+        png_path = f
+        break
+
+    if not png_path or not png_path.exists():
+        print(f"[draw.io] No PNG generated in {svg_file.parent}")
+        # Try fallback: use the stem name
+        png_path = svg_file.parent / f"{drawio_file.stem}.png"
+        if not png_path.exists():
+            return False
+
+    # Step 2: Convert PNG to SVG using ImageMagick (potrace would be better, but using IM for simplicity)
+    # For vector quality, we use ImageMagick's PNG to SVG conversion
+    command_svg = [
+        "convert",
+        "-quality", "100",
+        str(png_path),
+        str(svg_file)
+    ]
+
+    print(f"[draw.io] Converting PNG -> {svg_file} using ImageMagick")
+    result = subprocess.run(command_svg, capture_output=True, text=True, timeout=120)
+
+    # Cleanup PNG
+    try:
+        png_path.unlink()
+    except Exception as e:
+        print(f"[draw.io] Warning: Could not delete {png_path}: {e}")
+
+    if result.returncode != 0:
+        print(f"[draw.io] ImageMagick SVG conversion failed: {result.returncode}")
+        print(f"[draw.io] Error: {result.stderr[:200]}")
+        return False
 
     if not svg_file.exists():
         print(f"[draw.io] Expected SVG at {svg_file} but the file does not exist")
@@ -56,3 +79,5 @@ def convert_drawio_to_svg(
 
     print(f"[draw.io] SVG written to {svg_file}")
     return True
+
+

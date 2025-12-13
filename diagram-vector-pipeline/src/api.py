@@ -41,6 +41,48 @@ async def convert_svg(file: UploadFile = File(...)):
     return Response(content=output_svg.read_bytes(), media_type="image/svg+xml")
 
 
+@app.post("/convert/png")
+async def convert_png(file: UploadFile = File(...)):
+    """
+    Convert DrawIO to PNG using LibreOffice.
+    Useful for quick preview before EMF conversion.
+    """
+    import subprocess
+    
+    tmpdir = Path(tempfile.mkdtemp(prefix="drawio-"))
+    input_path = tmpdir / file.filename
+    output_png = tmpdir / "output.png"
+
+    input_path.write_bytes(await file.read())
+    print(f"[api] Received {input_path} for PNG conversion")
+
+    # Use LibreOffice to convert DrawIO to PNG
+    cmd = [
+        "libreoffice",
+        "--headless",
+        "--convert-to", "png",
+        "--outdir", str(tmpdir),
+        str(input_path)
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    
+    if result.returncode != 0:
+        print(f"[api] PNG conversion error: {result.stderr}")
+        raise HTTPException(status_code=500, detail="PNG conversion failed")
+    
+    # Find the generated PNG
+    png_files = list(tmpdir.glob("*.png"))
+    if not png_files:
+        print(f"[api] No PNG file generated")
+        raise HTTPException(status_code=500, detail="No PNG generated")
+    
+    png_content = png_files[0].read_bytes()
+    print(f"[api] PNG conversion success: {len(png_content)} bytes")
+    
+    return Response(content=png_content, media_type="image/png")
+
+
 @app.post("/convert/emf")
 async def convert_emf(file: UploadFile = File(...)):
     """
