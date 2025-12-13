@@ -84,6 +84,11 @@ services:
 
       # JWT configuration (disable for local dev)
       JWT_ENABLED: "false"
+
+      # Example service configuration (allow localhost callback)
+      WOPI_ENABLED: "true"
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+      ALLOW_META_IP_ADDRESS: "true"
     ports:
       - "8000:80"
     volumes:
